@@ -1,0 +1,205 @@
+#include <SparkFun_Bio_Sensor_Hub_Library.h>
+#include <Wire.h>
+
+// Reset pin, MFIO pin
+int resPin = 5;
+int mfioPin = 6;
+
+// Takes address, reset pin, and MFIO pin.
+SparkFun_Bio_Sensor_Hub bioHub(resPin, mfioPin); 
+bioData body;  
+#include <Adafruit_Sensor.h>
+#include <DHT.h>
+#include <DHT_U.h>
+#include "DHT.h"
+#define DHTPIN 8     
+#define DHTTYPE DHT11   // DHT 22  (AM2302), AM2321
+DHT dht(DHTPIN, DHTTYPE); 
+#define DHTPIN2 9     
+#define DHTTYPE2 DHT11   // DHT 22  (AM2302), AM2321
+DHT dht2(DHTPIN2, DHTTYPE2); 
+float t,h,hic,f;
+float t2,h2,hic2,f2;
+int mq2=A0,mq135=A1,mq136=A2;
+int g1,g2,g3,buzzer=7;
+int red=2,blue=3,green=4;
+int oxx=100,bpmm=100;
+int bt=10,but;
+void setup() {
+  Serial.begin(9600);
+  Serial3.begin(9600);  
+  dht.begin();
+    dht2.begin();
+  pinMode(buzzer,OUTPUT);
+  pinMode(red,OUTPUT);
+  pinMode(blue,OUTPUT);
+  pinMode(green,OUTPUT);
+    pinMode(bt,INPUT);
+  digitalWrite(red,HIGH); digitalWrite(green,HIGH); digitalWrite(blue,HIGH);
+   Wire.begin();
+  int result = bioHub.begin();
+  if (result == 0) // Zero errors!
+    Serial.println("Sensor started!");
+  else
+    Serial.println("Could not communicate with the sensor!!!");
+ 
+  Serial.println("Configuring Sensor...."); 
+  int error = bioHub.configBpm(MODE_ONE); // Configuring just the BPM settings. 
+  if(error == 0){ // Zero errors!
+    Serial.println("Sensor configured.");
+  }
+  else {
+    Serial.println("Error configuring sensor.");
+    Serial.print("Error: "); 
+    Serial.println(error); 
+  }
+
+  // Data lags a bit behind the sensor, if you're finger is on the sensor when
+  // it's being configured this delay will give some time for the data to catch
+  // up. 
+  Serial.println("Loading up the buffer with data....");
+  delay(4000); 
+}
+
+void loop() {
+Tempo();
+ Tempo2();
+gases();
+Serial_display();
+xbee_serial();
+body = bioHub.readBpm();
+if( body.heartRate>0 && body.oxygen>0)
+{
+bpmm=body.heartRate;
+oxx=body.oxygen;
+}
+if(t2>30 || oxx<85 || bpmm>120 ){digitalWrite(red,LOW);delay(200); digitalWrite(red,HIGH);}
+if(t>30 || h>80){digitalWrite(blue,LOW);delay(200); digitalWrite(blue,HIGH);}
+if(t>30 || h>80 || t2>37 || oxx<85 || bpmm>120 )
+{digitalWrite(buzzer,HIGH); delay(1000);
+  digitalWrite(buzzer,LOW); delay(100);
+  
+  }
+
+  but=digitalRead(bt);
+  if(but==1)
+  {
+  Serial3.print("e");
+  Serial3.print("E");
+  for(int i=0;i<10;i++)
+  {
+   digitalWrite(red,LOW);digitalWrite(blue,LOW);
+   digitalWrite(buzzer,HIGH); delay(500);
+   digitalWrite(red,HIGH);digitalWrite(blue,HIGH);
+  digitalWrite(buzzer,LOW); delay(500); 
+   
+  }
+  }
+  
+if( g1>40 || g2>40 || g3>70 )
+{
+  digitalWrite(red,LOW); digitalWrite(green,LOW);
+ digitalWrite(buzzer,HIGH); delay(100);
+  digitalWrite(buzzer,LOW); delay(100); 
+  digitalWrite(red,HIGH); digitalWrite(green,HIGH);
+  }
+}
+
+//--------------------------------------
+void Tempo()
+{
+ 
+  
+     h = dht.readHumidity();
+   t = dht.readTemperature();
+   f = dht.readTemperature(true);
+  if (isnan(h) || isnan(t) || isnan(f)) {
+    Serial.println("Failed to read from DHT sensor!");
+    return;
+  }
+   hic = dht.computeHeatIndex(t, h, false);
+  }
+  void Tempo2()
+{
+
+     h2 = dht2.readHumidity();
+   t2 = dht2.readTemperature();
+   f2 = dht2.readTemperature(true);
+  if (isnan(h2) || isnan(t2) || isnan(f2)) {
+    Serial.println("Failed to read from DHT2 sensor!");
+    return;
+  }
+   hic2 = dht2.computeHeatIndex(t2, h2, false);
+  }
+  //----------------------------------
+  void Serial_display()
+  {
+     Serial.print("Temperature: ");
+    Serial.print(t);
+   Serial.print(" *C ");
+     Serial.print("   h: ");
+   Serial.print(h);
+        Serial.print("   mq2: ");
+   Serial.print(g1);
+        Serial.print("   mq135: ");
+   Serial.print(g2);
+         Serial.print("   mq136: ");
+   Serial.print(g3); 
+            Serial.print("   body_temp: ");
+   Serial.print(t2);   
+              Serial.print("   body_BPM: ");
+   Serial.print(bpmm);   
+                 Serial.print("   body_SPO2: ");
+   Serial.print(oxx);
+
+   Serial.println("  ");
+delay(100); 
+    }
+    //----------------------------------
+  void xbee_serial()
+  {
+     Serial3.print("t ");
+    Serial3.print(t);
+     Serial3.print("   h ");
+   Serial3.print(h);
+        Serial3.print("   g ");
+   Serial3.print(g1);
+        Serial3.print("   G ");
+   Serial3.print(g2);
+         Serial3.print("   j ");
+   Serial3.print(g3); 
+    Serial3.print("   b ");
+     Serial3.print(t2);
+         Serial3.print("   o ");
+     Serial3.print(oxx);
+        Serial3.print("   m ");
+     Serial3.print(bpmm);
+   Serial3.println("  ");
+   if(Serial3.available())
+   {  
+    char ccc=Serial3.read();
+    Serial.println(ccc);
+    if(ccc=='c')
+    {
+      for(int i=0;i<10;i++)
+  {
+     digitalWrite(red,LOW);digitalWrite(blue,LOW);;digitalWrite(green,LOW);
+     digitalWrite(buzzer,HIGH); delay(500);
+     digitalWrite(red,HIGH);digitalWrite(blue,HIGH);;digitalWrite(green,HIGH);
+    digitalWrite(buzzer,LOW); delay(500); 
+  }
+      }
+    
+    }
+
+    }
+ //---------------------------------------
+ void gases()
+ {
+  g1=analogRead(mq2);
+  g2=analogRead(mq135);
+  g3=analogRead(mq136);  
+ g1=map(g1,0,1023,0,100);
+ g2=map(g2,0,1023,0,100);
+ g3=map(g3,0,1023,0,100);  
+  }
